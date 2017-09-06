@@ -1,4 +1,3 @@
-
 package transport.udp.client;
 
 import java.io.IOException;
@@ -33,22 +32,23 @@ public class UDPClient {
         mListener = listener;
     }
 
-    public void start() throws UnknownHostException, IOException {
+    public void start() {
         try {
-            InetAddress hostIP = InetAddress.getLocalHost();
-            InetSocketAddress receivingAddress = new InetSocketAddress(hostIP, 4444);
-
-            DatagramChannel datagramChannel = DatagramChannel.open();
-            DatagramSocket socket = datagramChannel.socket();
-            socket.bind(receivingAddress);
-
+            final DatagramChannel datagramChannel = connect();
             createReader(datagramChannel);
-
             createWriter(datagramChannel);
         } catch (Exception e) {
             e.printStackTrace();
         }
 
+    }
+
+    private DatagramChannel connect() throws UnknownHostException, IOException {
+        InetSocketAddress address = new InetSocketAddress(mConfigs.getHost(), mConfigs.getPort());
+        DatagramChannel datagramChannel = DatagramChannel.open();
+        DatagramSocket socket = datagramChannel.socket();
+        socket.connect(address);
+        return datagramChannel;
     }
 
     private void createReader(DatagramChannel datagramChannel) {
@@ -79,14 +79,14 @@ public class UDPClient {
             mReader = null;
         }
     }
-    
+
     private void stopWriter() {
         if (mWriter != null) {
             mWriter.stopWriter();
             mWriter = null;
         }
     }
-    
+
     public void stop() {
         stopReader();
         stopWriter();
