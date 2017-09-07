@@ -156,9 +156,9 @@ public class TCPClient {
                 .setHost("localhost")
                 .setPort(2017)
                 .setPayloadSize(1024 * 128 /* 128kb */)
-                .setSocketTimout(5000)
-                .setReadTimout(15000)
-                .setWriteTimout(15000)
+                .setSocketTimeout(5000)
+                .setReadTimeout(15000)
+                .setWriteTimeout(15000)
                 .build();
 
         final TCPClient client = new TCPClient(configs);

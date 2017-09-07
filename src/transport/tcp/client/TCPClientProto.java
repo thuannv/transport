@@ -183,9 +183,9 @@ public class TCPClientProto {
                 .setHost("49.213.118.166")
                 .setPort(11113)
                 .setPayloadSize(1024 * 128 /* 128kb */)
-                .setSocketTimout(5000)
-                .setReadTimout(15000)
-                .setWriteTimout(15000)
+                .setSocketTimeout(5000)
+                .setReadTimeout(15000)
+                .setWriteTimeout(15000)
                 .build();
 
         final TCPClientProto client = new TCPClientProto(configs);

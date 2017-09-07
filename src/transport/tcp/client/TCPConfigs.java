@@ -88,17 +88,17 @@ public class TCPConfigs {
             return this;
         }
 
-        public Builder setSocketTimout(int timeout) {
+        public Builder setSocketTimeout(int timeout) {
             mSocketTimeout = timeout;
             return this;
         }
 
-        public Builder setReadTimout(int timeout) {
+        public Builder setReadTimeout(int timeout) {
             mReadTimeout = timeout;
             return this;
         }
 
-        public Builder setWriteTimout(int timeout) {
+        public Builder setWriteTimeout(int timeout) {
             mWriteTimeout = timeout;
             return this;
         }
