@@ -2,7 +2,6 @@ package transport.udp.client;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.DatagramChannel;
@@ -104,9 +103,8 @@ public class UDPClient {
 
     public static void main(String[] args) {
         try {
-            final InetAddress hostIP = InetAddress.getLocalHost();
-            final InetSocketAddress sendingAddress = new InetSocketAddress(hostIP, 3333);
-            final UDPConfigs configs = new UDPConfigs(sendingAddress.getHostName(), 3333, 1024);
+            final UDPConfigs configs = new UDPConfigs("127.0.0.1", 3333, 1024);
+//            final UDPConfigs configs = new UDPConfigs("49.213.118.166", 11114, 1024);
             final UDPClient client = new UDPClient(configs);
             client.setListener(new DataListener() {
                 int id = 1;
@@ -127,7 +125,7 @@ public class UDPClient {
             });
             client.start();
             client.send("Hello!".getBytes(Charset.defaultCharset()));
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             ex.printStackTrace();
         }
     }

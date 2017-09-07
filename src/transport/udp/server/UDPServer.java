@@ -3,7 +3,6 @@ package transport.udp.server;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
@@ -23,8 +22,7 @@ public class UDPServer {
     private static final Logger LOGGER = Logger.getLogger(UDPServer.class.getName());
 
     public void start() throws IOException, UnknownHostException {
-        InetAddress hostIP = InetAddress.getLocalHost();
-        InetSocketAddress receivingAddress = new InetSocketAddress(hostIP, 3333);
+        InetSocketAddress receivingAddress = new InetSocketAddress("127.0.0.1", 3333);
         DatagramChannel datagramChannel = DatagramChannel.open();
         DatagramSocket socket = datagramChannel.socket();
         socket.bind(receivingAddress);
