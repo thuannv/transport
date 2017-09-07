@@ -104,7 +104,7 @@ public class UDPClientProto {
         }
     }
 
-    private static byte[] generateTimestampMessage() {
+    private static byte[] generateMessage() {
         ZLive.ZAPIMessage.Builder builder = ZLive.ZAPIMessage.newBuilder();
         builder.setCmd(1);
         builder.setDeviceId("steven-pc@vng.com.vn");
@@ -113,14 +113,16 @@ public class UDPClientProto {
         return data.toByteArray();
     }
 
-    private static ZLive.ZAPIMessage parse(byte[] data) {
-        ZLive.ZAPIMessage msg = null;
+    private static String parse(byte[] data) {
+        String result = "";
         try {
-            msg = ZLive.ZAPIMessage.parseFrom(data);
+            ZLive.ZAPIMessage msg = ZLive.ZAPIMessage.parseFrom(data);
+            ByteString responsedData = msg.getData();
+            result = responsedData.toString(Charset.defaultCharset()) + "";
         } catch (InvalidProtocolBufferException ex) {
             ex.printStackTrace();
         }
-        return msg;
+        return result;
     }
 
     public static void main(String[] args) {
@@ -130,22 +132,20 @@ public class UDPClientProto {
             client.setListener(new DataListener() {
                 @Override
                 public void onReceived(byte[] data) {
-                    ZLive.ZAPIMessage msg = parse(data);
-                    if (msg != null) {
-                        ByteString responsedData = msg.getData();
-                        String reponsedMessage = responsedData.toString(Charset.defaultCharset()) + "";
-                        System.out.format("Responsed: \"%s\"\n", reponsedMessage);
+                    String reponsedMessage = parse(data);
+                    if (reponsedMessage != null && !reponsedMessage.isEmpty()) {
+                        System.out.println(reponsedMessage);
                     } else {
                         System.out.println("parse data failed.");
                     }
 
                     System.out.println("Sending new message...");
-                    client.send(generateTimestampMessage());
+                    client.send(generateMessage());
                 }
             });
             client.start();
 
-            client.send(generateTimestampMessage());
+            client.send(generateMessage());
         } catch (Exception ex) {
             ex.printStackTrace();
         }

@@ -3,6 +3,7 @@ package transport.tcp.client;
 
 import java.io.BufferedInputStream;
 import java.net.Socket;
+import java.util.Arrays;
 import transport.DataListener;
 
 /**
@@ -45,7 +46,7 @@ public class SocketReader extends Thread {
                     read = in.read(data, 0, size);
                     if (read > 0) {
                         if (mListener != null) {
-                            mListener.onReceived(data);
+                            mListener.onReceived(Arrays.copyOfRange(data, 0, read));
                         }
                     }
                 } catch (Exception e) {

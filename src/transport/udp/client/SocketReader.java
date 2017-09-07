@@ -44,6 +44,7 @@ public final class SocketReader extends Thread {
     public void run() {
         mIsRunning = true;
         try {
+            InetAddress serverAddress = null;
             final int size = mConfigs.getBufferSize();
             final byte[] buffer = new byte[size];
             final DatagramPacket packet = new DatagramPacket(buffer, size);
@@ -53,12 +54,12 @@ public final class SocketReader extends Thread {
                 try {
                     packet.setData(buffer, 0, size);
                     socket.receive(packet);
-                    InetAddress address = packet.getAddress();
-                    if (address != null
-                            && (server.equals(address.getHostName())
-                            || server.equals(address.getAddress())
-                            || server.equals(address.getHostAddress())
-                            || server.equals(address.getCanonicalHostName()))) {
+                    serverAddress = packet.getAddress();
+                    if (serverAddress != null
+                            && (server.equals(serverAddress.getHostName())
+                            || server.equals(serverAddress.getAddress())
+                            || server.equals(serverAddress.getHostAddress())
+                            || server.equals(serverAddress.getCanonicalHostName()))) {
                         if (mListener != null) {
                             mListener.onReceived(Arrays.copyOfRange(buffer, packet.getOffset(), packet.getLength()));
                         }
