@@ -45,7 +45,7 @@ public class SocketReader extends Thread {
                     read = in.read(data, 0, size);
                     if (read > 0) {
                         if (mListener != null) {
-                            mListener.onReceived(data, 0, read);
+                            mListener.onReceived(data);
                         }
                     }
                 } catch (Exception e) {

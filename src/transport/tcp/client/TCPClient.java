@@ -1,4 +1,3 @@
-
 package transport.tcp.client;
 
 import java.io.IOException;
@@ -70,9 +69,9 @@ public class TCPClient {
             mReader = new SocketReader(mSocket, mConfigs);
             mReader.setListener(new DataListener() {
                 @Override
-                public void onReceived(byte[] data, int offset, int length) {
+                public void onReceived(byte[] data) {
                     if (mDataListener != null) {
-                        mDataListener.onReceived(data, offset, length);
+                        mDataListener.onReceived(data);
                     }
                 }
             });
@@ -182,8 +181,8 @@ public class TCPClient {
         });
         client.setDataListener(new DataListener() {
             @Override
-            public void onReceived(byte[] data, int offset, int length) {
-                String msg = new String(data, offset, length);
+            public void onReceived(byte[] data) {
+                String msg = new String(data);
                 System.out.println("Received message from server: " + msg);
                 System.out.println("Send new messaage to server");
                 client.send(("Timestamp message ts=" + System.currentTimeMillis()).getBytes());

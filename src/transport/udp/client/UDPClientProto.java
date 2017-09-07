@@ -1,18 +1,22 @@
 package transport.udp.client;
 
+import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.IOException;
 import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.DatagramChannel;
 import java.nio.charset.Charset;
 import transport.DataListener;
+import transport.ZLive;
 
 /**
  *
  * @author thuannv
  * @since Sept. 06, 2017
  */
-public class UDPClient {
+public class UDPClientProto {
 
     private final UDPConfigs mConfigs;
 
@@ -22,7 +26,7 @@ public class UDPClient {
 
     private DataListener mListener;
 
-    public UDPClient(UDPConfigs configs) {
+    public UDPClientProto(UDPConfigs configs) {
         mConfigs = configs;
     }
 
@@ -42,9 +46,10 @@ public class UDPClient {
     }
 
     private DatagramChannel connect() throws UnknownHostException, IOException {
+        InetSocketAddress address = new InetSocketAddress(mConfigs.getHost(), mConfigs.getPort());
         DatagramChannel datagramChannel = DatagramChannel.open();
         DatagramSocket socket = datagramChannel.socket();
-        socket.setSoTimeout(mConfigs.getSocketTimeout());
+        socket.connect(address);
         return datagramChannel;
     }
 
@@ -99,30 +104,48 @@ public class UDPClient {
         }
     }
 
+    private static byte[] generateTimestampMessage() {
+        ZLive.ZAPIMessage.Builder builder = ZLive.ZAPIMessage.newBuilder();
+        builder.setCmd(1);
+        builder.setDeviceId("steven-pc@vng.com.vn");
+        builder.setData(ByteString.copyFrom("16f63762155910c13b6a3877a70e943395d565ef66e7dff9", Charset.defaultCharset()));
+        ZLive.ZAPIMessage data = builder.build();
+        return data.toByteArray();
+    }
+
+    private static ZLive.ZAPIMessage parse(byte[] data) {
+        ZLive.ZAPIMessage msg = null;
+        try {
+            msg = ZLive.ZAPIMessage.parseFrom(data);
+        } catch (InvalidProtocolBufferException ex) {
+            ex.printStackTrace();
+        }
+        return msg;
+    }
+
     public static void main(String[] args) {
         try {
-//            final UDPConfigs configs = new UDPConfigs("localhost", 3333, 1024, 15000);
-            final UDPConfigs configs = new UDPConfigs("127.0.0.1", 3333, 1024, 15000);
-            final UDPClient client = new UDPClient(configs);
+            final UDPConfigs configs = new UDPConfigs("49.213.118.166", 11114, 1024, 15000);
+            final UDPClientProto client = new UDPClientProto(configs);
             client.setListener(new DataListener() {
-                int id = 1;
-
                 @Override
                 public void onReceived(byte[] data) {
-                    if (id > 10) {
-                        client.send("STOP".getBytes(Charset.defaultCharset()));
-                        client.stop();
+                    ZLive.ZAPIMessage msg = parse(data);
+                    if (msg != null) {
+                        ByteString responsedData = msg.getData();
+                        String reponsedMessage = responsedData.toString(Charset.defaultCharset()) + "";
+                        System.out.format("Responsed: \"%s\"\n", reponsedMessage);
                     } else {
-                        String msg = new String(data, 0, data.length, Charset.defaultCharset());
-                        System.out.format("Server responsed: \"%s\"\n", msg);
-
-                        System.out.println("sending new message...");
-                        client.send(("Message " + (id++)).getBytes(Charset.defaultCharset()));
+                        System.out.println("parse data failed.");
                     }
+
+                    System.out.println("Sending new message...");
+                    client.send(generateTimestampMessage());
                 }
             });
             client.start();
-            client.send("Hello!".getBytes(Charset.defaultCharset()));
+
+            client.send(generateTimestampMessage());
         } catch (Exception ex) {
             ex.printStackTrace();
         }

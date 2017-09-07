@@ -13,11 +13,14 @@ public final class UDPConfigs {
     private final String mHost;
 
     private final int mBufferSize;
+    
+    private final int mSocketTimeout;
 
-    public UDPConfigs(String host, int port, int bufferSize) {
+    public UDPConfigs(String host, int port, int bufferSize, int socketTimeout) {
         mHost = host;
         mPort = port;
         mBufferSize = bufferSize;
+        mSocketTimeout = socketTimeout;
     }
 
     public int getPort() {
@@ -32,6 +35,9 @@ public final class UDPConfigs {
         return mBufferSize;
     }
 
+    public int getSocketTimeout() {
+        return mSocketTimeout;
+    }
     /**
      *
      */
@@ -42,6 +48,8 @@ public final class UDPConfigs {
         private String mHost;
 
         private int mBufferSize;
+        
+        private int mSocketTimeout;
 
         private UDPConfigs mConfigs;
 
@@ -59,7 +67,12 @@ public final class UDPConfigs {
             mBufferSize = bufferSize;
             return this;
         }
-
+        
+        public Builder setSocketTimeout(int timeout) {
+            mSocketTimeout = timeout;
+            return this;
+        }
+        
         public int getPort() {
             return mPort;
         }
@@ -72,9 +85,13 @@ public final class UDPConfigs {
             return mBufferSize;
         }
 
+        public int getSocketTimeout() {
+            return mSocketTimeout;
+        }
+        
         public UDPConfigs build() {
             if (mConfigs == null) {
-                mConfigs = new UDPConfigs(mHost, mPort, mBufferSize);
+                mConfigs = new UDPConfigs(mHost, mPort, mBufferSize, mSocketTimeout);
             }
             return mConfigs;
         }

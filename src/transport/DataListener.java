@@ -1,4 +1,3 @@
-
 package transport;
 
 /**
@@ -8,5 +7,5 @@ package transport;
  */
 public interface DataListener {
 
-    void onReceived(byte[] data, int offset, int length);
+    void onReceived(byte[] data);
 }

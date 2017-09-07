@@ -1,8 +1,10 @@
-
 package transport.udp.client;
 
-import java.nio.ByteBuffer;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.channels.DatagramChannel;
+import java.util.Arrays;
 import transport.DataListener;
 
 /**
@@ -29,7 +31,7 @@ public final class SocketReader extends Thread {
     public void stopReader() {
         mIsRunning = false;
     }
-    
+
     public boolean isRunning() {
         return mIsRunning;
     }
@@ -41,15 +43,25 @@ public final class SocketReader extends Thread {
     @Override
     public void run() {
         mIsRunning = true;
-        final ByteBuffer buffer = ByteBuffer.allocate(mConfigs.getBufferSize());
         try {
+            final int size = mConfigs.getBufferSize();
+            final byte[] buffer = new byte[size];
+            final DatagramPacket packet = new DatagramPacket(buffer, size);
+            final DatagramSocket socket = mDatagramChannel.socket();
+            final String server = mConfigs.getHost();
             while (mIsRunning) {
                 try {
-                    buffer.clear();
-                    mDatagramChannel.receive(buffer);
-                    buffer.flip();
-                    if (mListener != null) {
-                        mListener.onReceived(buffer.array(), buffer.position(), buffer.limit());
+                    packet.setData(buffer, 0, size);
+                    socket.receive(packet);
+                    InetAddress address = packet.getAddress();
+                    if (address != null
+                            && (server.equals(address.getHostName())
+                            || server.equals(address.getAddress())
+                            || server.equals(address.getHostAddress())
+                            || server.equals(address.getCanonicalHostName()))) {
+                        if (mListener != null) {
+                            mListener.onReceived(Arrays.copyOfRange(buffer, packet.getOffset(), packet.getLength()));
+                        }
                     }
                 } catch (Exception ex) {
                     ex.printStackTrace();

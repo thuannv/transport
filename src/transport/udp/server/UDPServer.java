@@ -22,7 +22,7 @@ public class UDPServer {
     private static final Logger LOGGER = Logger.getLogger(UDPServer.class.getName());
 
     public void start() throws IOException, UnknownHostException {
-        InetSocketAddress receivingAddress = new InetSocketAddress("127.0.0.1", 3333);
+        InetSocketAddress receivingAddress = new InetSocketAddress("localhost", 3333);
         DatagramChannel datagramChannel = DatagramChannel.open();
         DatagramSocket socket = datagramChannel.socket();
         socket.bind(receivingAddress);
