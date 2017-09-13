@@ -7,8 +7,8 @@ import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.Timer;
 import java.util.TimerTask;
-import transport.DataListener;
 import transport.ZLive;
+import transport.IoProcessor;
 
 /**
  *
@@ -25,7 +25,7 @@ public class TCPClientProto {
 
     private ConnectionObserver mConnectionObserver;
 
-    private DataListener mDataListener;
+    private IoProcessor mDataListener;
 
     private SocketReader mReader;
 
@@ -39,7 +39,7 @@ public class TCPClientProto {
         mConnectionObserver = observer;
     }
 
-    public void setDataListener(DataListener listener) {
+    public void setDataListener(IoProcessor listener) {
         mDataListener = listener;
     }
 
@@ -71,11 +71,11 @@ public class TCPClientProto {
     private void createReader() {
         if (mReader == null) {
             mReader = new SocketReader(mSocket, mConfigs);
-            mReader.setListener(new DataListener() {
+            mReader.setListener(new IoProcessor() {
                 @Override
-                public void onReceived(byte[] data) {
+                public void process(byte[] data) {
                     if (mDataListener != null) {
-                        mDataListener.onReceived(data);
+                        mDataListener.process(data);
                     }
                 }
             });
@@ -165,7 +165,6 @@ public class TCPClientProto {
     }
 
     private static String parse(byte[] data) {
-//        return new String(data);
         String result = "";
         try {
             ZLive.ZAPIMessage msg = ZLive.ZAPIMessage.parseFrom(data);
@@ -206,9 +205,9 @@ public class TCPClientProto {
                 System.err.println("Socket error: \n" + t.toString());
             }
         });
-        client.setDataListener(new DataListener() {
+        client.setDataListener(new IoProcessor() {
             @Override
-            public void onReceived(byte[] data) {
+            public void process(byte[] data) {
                 String reponsedMessage = parse(data);
                 if (reponsedMessage != null && !reponsedMessage.isEmpty()) {
                     System.out.println(reponsedMessage);

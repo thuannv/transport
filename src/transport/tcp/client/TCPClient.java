@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Timer;
 import java.util.TimerTask;
-import transport.DataListener;
+import transport.IoProcessor;
 
 /**
  *
@@ -21,7 +21,7 @@ public class TCPClient {
 
     private ConnectionObserver mConnectionObserver;
 
-    private DataListener mDataListener;
+    private IoProcessor mDataListener;
 
     private SocketReader mReader;
 
@@ -35,7 +35,7 @@ public class TCPClient {
         mConnectionObserver = observer;
     }
 
-    public void setDataListener(DataListener listener) {
+    public void setDataListener(IoProcessor listener) {
         mDataListener = listener;
     }
 
@@ -67,11 +67,11 @@ public class TCPClient {
     private void createReader() {
         if (mReader == null) {
             mReader = new SocketReader(mSocket, mConfigs);
-            mReader.setListener(new DataListener() {
+            mReader.setListener(new IoProcessor() {
                 @Override
-                public void onReceived(byte[] data) {
+                public void process(byte[] data) {
                     if (mDataListener != null) {
-                        mDataListener.onReceived(data);
+                        mDataListener.process(data);
                     }
                 }
             });
@@ -179,9 +179,9 @@ public class TCPClient {
                 System.err.println("Socket error: \n" + t.toString());
             }
         });
-        client.setDataListener(new DataListener() {
+        client.setDataListener(new IoProcessor() {
             @Override
-            public void onReceived(byte[] data) {
+            public void process(byte[] data) {
                 String msg = new String(data);
                 System.out.println("Received message from server: " + msg);
                 System.out.println("Send new messaage to server");

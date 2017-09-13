@@ -1,4 +1,3 @@
-
 package transport.tcp.client;
 
 import java.io.BufferedOutputStream;
@@ -25,10 +24,7 @@ public class SocketWriter extends Thread {
     }
 
     public void stopWriter() {
-        mIsRunning = false;
-        synchronized (mLock) {
-            mLock.notifyAll();
-        }
+        this.interrupt();
     }
 
     public void write(byte[] data) {
@@ -36,8 +32,8 @@ public class SocketWriter extends Thread {
             return;
         }
 
-        synchronized (mLock) {
-            if (mIsRunning) {
+        if (mIsRunning && !isInterrupted()) {
+            synchronized (mLock) {
                 mQueue.addFirst(data);
                 mLock.notifyAll();
             }
@@ -54,7 +50,7 @@ public class SocketWriter extends Thread {
 
         byte[] data;
         try (BufferedOutputStream writer = new BufferedOutputStream(mSocket.getOutputStream())) {
-            while (mIsRunning) {
+            while (mIsRunning && isAlive() && !isInterrupted()) {
                 synchronized (mLock) {
                     while (mIsRunning && mQueue.isEmpty()) {
                         try {

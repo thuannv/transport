@@ -1,4 +1,3 @@
-
 package transport.udp.client;
 
 import java.net.InetSocketAddress;
@@ -12,7 +11,7 @@ import java.util.LinkedList;
  * @author thuannv
  * @since Sept. 06, 2017
  */
-public final class SocketWriter extends Thread {
+public final class UDPSocketWriter extends Thread {
 
     private final Object mLock = new Object();
 
@@ -26,7 +25,7 @@ public final class SocketWriter extends Thread {
 
     private final SocketAddress mTargetAddress;
 
-    public SocketWriter(UDPConfigs configs, DatagramChannel channel) {
+    public UDPSocketWriter(UDPConfigs configs, DatagramChannel channel) {
         super("DatagramSocketWriter");
         mConfigs = configs;
         mTargetAddress = new InetSocketAddress(configs.getHost(), configs.getPort());
@@ -39,6 +38,7 @@ public final class SocketWriter extends Thread {
         synchronized (mLock) {
             mLock.notifyAll();
         }
+        this.interrupt();
     }
 
     public boolean isRunning() {
@@ -47,11 +47,11 @@ public final class SocketWriter extends Thread {
 
     public void write(byte[] data) {
         if (data == null || data.length <= 0) {
-            return ;
+            return;
         }
-        
-        synchronized (mLock) {
-            if (mIsRunning) {
+
+        if (mIsRunning && !isInterrupted()) {
+            synchronized (mLock) {
                 mQueue.addFirst(data);
                 mLock.notifyAll();
             }
@@ -64,7 +64,7 @@ public final class SocketWriter extends Thread {
         try {
             byte[] data = null;
             final ByteBuffer buffer = ByteBuffer.allocate(mConfigs.getBufferSize());
-            while (mIsRunning) {
+            while (mIsRunning && !interrupted()) {
                 synchronized (mLock) {
                     while (mIsRunning && mQueue.isEmpty()) {
                         try {
@@ -83,7 +83,7 @@ public final class SocketWriter extends Thread {
                         buffer.flip();
                         mDatagramChannel.send(buffer, mTargetAddress);
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        //e.printStackTrace();
                     }
                 }
             }

@@ -5,14 +5,14 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.channels.DatagramChannel;
 import java.util.Arrays;
-import transport.DataListener;
+import transport.IoProcessor;
 
 /**
  *
  * @author thuannv
  * @since Sept. 06, 2017
  */
-public final class SocketReader extends Thread {
+public final class UDPSocketReader extends Thread {
 
     private final DatagramChannel mDatagramChannel;
 
@@ -20,52 +20,52 @@ public final class SocketReader extends Thread {
 
     private final UDPConfigs mConfigs;
 
-    private DataListener mListener;
+    private IoProcessor mProcessor;
 
-    public SocketReader(UDPConfigs configs, DatagramChannel datagramChannel) {
+    public UDPSocketReader(UDPConfigs configs, DatagramChannel datagramChannel) {
         super("DatagramSocketReader");
         mConfigs = configs;
         mDatagramChannel = datagramChannel;
     }
 
     public void stopReader() {
-        mIsRunning = false;
+        this.interrupt();
     }
 
     public boolean isRunning() {
         return mIsRunning;
     }
 
-    public void setListener(DataListener listener) {
-        mListener = listener;
+    public void setProcessor(IoProcessor processor) {
+        mProcessor = processor;
     }
 
     @Override
     public void run() {
         mIsRunning = true;
         try {
-            InetAddress serverAddress = null;
+            InetAddress packetAddress = null;
             final int size = mConfigs.getBufferSize();
             final byte[] buffer = new byte[size];
             final DatagramPacket packet = new DatagramPacket(buffer, size);
             final DatagramSocket socket = mDatagramChannel.socket();
             final String server = mConfigs.getHost();
-            while (mIsRunning) {
+            
+            while (mIsRunning && !isInterrupted()) {
                 try {
                     packet.setData(buffer, 0, size);
                     socket.receive(packet);
-                    serverAddress = packet.getAddress();
-                    if (serverAddress != null
-                            && (server.equals(serverAddress.getHostName())
-                            || server.equals(serverAddress.getAddress())
-                            || server.equals(serverAddress.getHostAddress())
-                            || server.equals(serverAddress.getCanonicalHostName()))) {
-                        if (mListener != null) {
-                            mListener.onReceived(Arrays.copyOfRange(buffer, packet.getOffset(), packet.getLength()));
+                    packetAddress = packet.getAddress();
+                    if (packetAddress != null
+                            && (server.equals(packetAddress.getHostName())
+                            || server.equals(packetAddress.getHostAddress())
+                            || server.equals(packetAddress.getCanonicalHostName()))) {
+                        if (mProcessor != null) {
+                            mProcessor.process(Arrays.copyOfRange(buffer, packet.getOffset(), packet.getLength()));
                         }
                     }
                 } catch (Exception ex) {
-                    ex.printStackTrace();
+                    //ex.printStackTrace();
                 }
             }
             System.out.println("Reader is stopping...");

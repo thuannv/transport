@@ -8,8 +8,8 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.DatagramChannel;
 import java.nio.charset.Charset;
-import transport.DataListener;
 import transport.ZLive;
+import transport.IoProcessor;
 
 /**
  *
@@ -20,17 +20,17 @@ public class UDPClientProto {
 
     private final UDPConfigs mConfigs;
 
-    private SocketReader mReader;
+    private UDPSocketReader mReader;
 
-    private SocketWriter mWriter;
+    private UDPSocketWriter mWriter;
 
-    private DataListener mListener;
+    private IoProcessor mListener;
 
     public UDPClientProto(UDPConfigs configs) {
         mConfigs = configs;
     }
 
-    public void setListener(DataListener listener) {
+    public void setListener(IoProcessor listener) {
         mListener = listener;
     }
 
@@ -55,12 +55,12 @@ public class UDPClientProto {
 
     private void createReader(DatagramChannel datagramChannel) {
         if (mReader == null) {
-            mReader = new SocketReader(mConfigs, datagramChannel);
-            mReader.setListener(new DataListener() {
+            mReader = new UDPSocketReader(mConfigs, datagramChannel);
+            mReader.setProcessor(new IoProcessor() {
                 @Override
-                public void onReceived(byte[] data) {
+                public void process(byte[] data) {
                     if (mListener != null) {
-                        mListener.onReceived(data);
+                        mListener.process(data);
                     }
                 }
             });
@@ -70,7 +70,7 @@ public class UDPClientProto {
 
     private void createWriter(DatagramChannel datagramChannel) {
         if (mWriter == null) {
-            mWriter = new SocketWriter(mConfigs, datagramChannel);
+            mWriter = new UDPSocketWriter(mConfigs, datagramChannel);
             mWriter.start();
         }
     }
@@ -129,9 +129,9 @@ public class UDPClientProto {
         try {
             final UDPConfigs configs = new UDPConfigs("49.213.118.166", 11114, 1024, 15000);
             final UDPClientProto client = new UDPClientProto(configs);
-            client.setListener(new DataListener() {
+            client.setListener(new IoProcessor() {
                 @Override
-                public void onReceived(byte[] data) {
+                public void process(byte[] data) {
                     String reponsedMessage = parse(data);
                     if (reponsedMessage != null && !reponsedMessage.isEmpty()) {
                         System.out.println(reponsedMessage);

@@ -4,7 +4,7 @@ package transport.tcp.client;
 import java.io.BufferedInputStream;
 import java.net.Socket;
 import java.util.Arrays;
-import transport.DataListener;
+import transport.IoProcessor;
 
 /**
  *
@@ -13,7 +13,7 @@ import transport.DataListener;
  */
 public class SocketReader extends Thread {
 
-    private DataListener mListener;
+    private IoProcessor mListener;
 
     private volatile boolean mIsRunning = false;
 
@@ -27,10 +27,10 @@ public class SocketReader extends Thread {
     }
 
     public void stopReader() {
-        mIsRunning = false;
+        this.interrupt();
     }
 
-    public void setListener(DataListener listener) {
+    public void setListener(IoProcessor listener) {
         mListener = listener;
     }
 
@@ -41,12 +41,12 @@ public class SocketReader extends Thread {
         final int size = mConfigs.getPayloadSize();
         final byte[] data = new byte[size];
         try (BufferedInputStream in = new BufferedInputStream(mSocket.getInputStream())) {
-            while (mIsRunning) {
+            while (mIsRunning && !isInterrupted()) {
                 try {
                     read = in.read(data, 0, size);
                     if (read > 0) {
                         if (mListener != null) {
-                            mListener.onReceived(Arrays.copyOfRange(data, 0, read));
+                            mListener.process(Arrays.copyOfRange(data, 0, read));
                         }
                     }
                 } catch (Exception e) {
