@@ -133,13 +133,13 @@ public final class UDPManager {
     }
 
     private void sendPing() {
-        System.out.println("sending ping...");
+        System.out.println("Sending ping...");
         byte[] data = ZLive.ZAPIMessage.newBuilder()
                 .setCmd(UDP_PING)
                 .build()
                 .toByteArray();
         send(data);
-        System.out.println("sent ping...");
+        System.out.println("Sent ping...");
     }
 
     private synchronized void resetClient() {
@@ -308,7 +308,7 @@ public final class UDPManager {
 
             mPingScheduler.start();
 
-            System.out.println("hanshake success");
+            System.out.println("Hanshake success");
 
         }
     }
@@ -325,12 +325,13 @@ public final class UDPManager {
         private volatile Timer mTimer;
 
         private void ping() {
-            long time = System.currentTimeMillis() - mLastPong;
-            int pingTime = mConfigs.getPingTime();
+            final long time = System.currentTimeMillis() - mLastPong;
+            final int pingTime = mConfigs.getPingTime();
+            final int maxRetry = mConfigs.getRetryCount();
             if (time > pingTime) {
                 ++mRetryCount;
             }
-            if (mRetryCount <= mConfigs.getRetryCount()) {
+            if (mRetryCount <= maxRetry) {
                 System.out.format("Ping retry count: %d\n", mRetryCount);
                 sendPing();
                 scheduleNext();
@@ -341,8 +342,9 @@ public final class UDPManager {
             }
         }
 
-        public void onPong() {
+        public void onPong() {           
             mLastPong = System.currentTimeMillis();
+            mRetryCount = 0;
         }
 
         public boolean handlePong(ZLive.ZAPIMessage message) {

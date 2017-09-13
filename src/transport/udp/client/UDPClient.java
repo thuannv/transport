@@ -3,7 +3,6 @@ package transport.udp.client;
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.nio.channels.DatagramChannel;
-import java.nio.charset.Charset;
 import transport.IoProcessor;
 
 /**
@@ -90,35 +89,6 @@ public class UDPClient {
 
         if (mWriter != null) {
             mWriter.write(data);
-        }
-    }
-
-    
-    public static void main(String[] args) {
-        try {
-            final UDPConfigs configs = new UDPConfigs("127.0.0.1", 3333, 1024, 15000);
-            final UDPClient client = new UDPClient(configs);
-            client.setProcessor(new IoProcessor() {
-                int id = 1;
-
-                @Override
-                public void process(byte[] data) {
-                    if (id > 10) {
-                        client.send("STOP".getBytes(Charset.defaultCharset()));
-                        client.stop();
-                    } else {
-                        String msg = new String(data, 0, data.length, Charset.defaultCharset());
-                        System.out.format("Server responsed: \"%s\"\n", msg);
-
-                        System.out.println("sending new message...");
-                        client.send(("Message " + (id++)).getBytes(Charset.defaultCharset()));
-                    }
-                }
-            });
-            client.start();
-            client.send("Hello!".getBytes(Charset.defaultCharset()));
-        } catch (Exception ex) {
-            ex.printStackTrace();
         }
     }
 }
