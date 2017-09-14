@@ -16,11 +16,11 @@ public final class MessageHelper {
     
     private MessageHelper() {}
     
-    public static byte[] createUdpHandshake(int cmd) {
+    public static byte[] createProtoMessage(int cmd) {
         ZLive.ZAPIMessage.Builder builder = ZLive.ZAPIMessage.newBuilder();
         builder.setCmd(cmd);
         builder.setDeviceId("steven-pc@vng.com.vn");
-        builder.setData(ByteString.copyFrom("16f63762155910c13b6a3877a70e943395d565ef66e7dff9", Charset.defaultCharset()));
+        builder.setData(ByteString.copyFrom("a055d349b59c759ec03a163d9e91907a95d565ef66e7dff9", Charset.defaultCharset()));
         ZLive.ZAPIMessage data = builder.build();
         return data.toByteArray();
     }

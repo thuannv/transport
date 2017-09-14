@@ -5,6 +5,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.channels.DatagramChannel;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 import transport.IoProcessor;
 
 /**
@@ -22,10 +23,16 @@ public final class UDPSocketReader extends Thread {
     
     private boolean mIsRunning = false;
 
-    public UDPSocketReader(UDPConfigs configs, DatagramChannel datagramChannel) {
+    private CountDownLatch mStartSignal;
+    
+    private CountDownLatch mStopSignal;
+    
+    public UDPSocketReader(UDPConfigs configs, DatagramChannel datagramChannel, CountDownLatch startSignal, CountDownLatch stopSignal) {
         super("DatagramSocketReader");
         mConfigs = configs;
         mDatagramChannel = datagramChannel;
+        mStartSignal = startSignal;
+        mStopSignal = stopSignal;
     }
 
     public void stopReader() {
@@ -38,6 +45,8 @@ public final class UDPSocketReader extends Thread {
 
     @Override
     public void run() {
+        mStartSignal.countDown();
+        
         mIsRunning = true;
         InetAddress packetAddress = null;
         final int size = mConfigs.getBufferSize();
@@ -65,5 +74,6 @@ public final class UDPSocketReader extends Thread {
         }
         mIsRunning = false;
         System.out.println("Reader is stopped.");
+        mStopSignal.countDown();
     }
 }

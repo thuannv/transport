@@ -5,6 +5,7 @@ import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 
@@ -25,12 +26,18 @@ public final class UDPSocketWriter extends Thread {
 
     private volatile boolean mIsRunning = false;
     
-    public UDPSocketWriter(UDPConfigs configs, DatagramChannel channel) {
+    private CountDownLatch mStartSignal;
+    
+    private CountDownLatch mStopSignal;
+    
+    public UDPSocketWriter(UDPConfigs configs, DatagramChannel channel, CountDownLatch startSignal, CountDownLatch stopSignal) {
         super("DatagramSocketWriter");
         mConfigs = configs;
         mTargetAddress = new InetSocketAddress(configs.getHost(), configs.getPort());
         mDatagramChannel = channel;
         mQueue = new LinkedBlockingDeque<>();
+        mStartSignal = startSignal;
+        mStopSignal = stopSignal;
     }
 
     public void stopWriter() {
@@ -49,6 +56,7 @@ public final class UDPSocketWriter extends Thread {
 
     @Override
     public void run() {
+        mStartSignal.countDown();
         mIsRunning = true;
         byte[] data;
         final ByteBuffer buffer = ByteBuffer.allocate(mConfigs.getBufferSize());
@@ -71,6 +79,7 @@ public final class UDPSocketWriter extends Thread {
         }
         mIsRunning = false;
         System.out.println("Writer is stopped.");
+        mStopSignal.countDown();
     }
 
 }
