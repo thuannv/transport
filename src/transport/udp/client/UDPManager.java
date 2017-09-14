@@ -103,7 +103,7 @@ public final class UDPManager {
         if (mConnector != null && mConnector.isAlive() && !mConnector.isInterrupted()) {
             mConnector.interrupt();
         }
-        
+
         final int serverCount = mConfigs.getServerCount();
         if (++mServerIndex == serverCount) {
             System.out.println("No more servers to try.");
@@ -342,7 +342,7 @@ public final class UDPManager {
             }
         }
 
-        public void onPong() {           
+        public void onPong() {
             mLastPong = System.currentTimeMillis();
             mRetryCount = 0;
         }
@@ -381,11 +381,20 @@ public final class UDPManager {
         }
     }
 
+    private static final boolean LOCAL = false;
+
     public static void main(String[] args) {
-        List<Address> servers = new ArrayList<>();
-        servers.add(new Address("127.0.0.1", 3333));
-        servers.add(new Address("localhost", 3333));
-        Configs configs = new Configs(servers, 1000, 10);
+        int pingTime;
+        final List<Address> servers = new ArrayList<>();
+        if (LOCAL) {
+            pingTime = 5000;
+            servers.add(new Address("127.0.0.1", 3333));
+            servers.add(new Address("localhost", 4444));
+        } else {
+            pingTime = 15000;
+            servers.add(new Address("49.213.118.166", 11114));
+        }
+        final Configs configs = new Configs(servers, pingTime, 10);
         UDPManager.getsInstance().init(configs);
     }
 }
