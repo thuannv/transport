@@ -76,7 +76,7 @@ public class UDPServer {
                             break;
 
                         case UDP_PING:
-                            System.out.println("Received Ping. Sending Pong...");
+                            System.out.println("Received Ping.");
                             data = ZLive.ZAPIMessage.newBuilder(message)
                                     .setCmd(UDP_PONG)
                                     .build()
@@ -85,9 +85,15 @@ public class UDPServer {
                             buffer.put(data);
                             buffer.flip();
                             datagramChannel.send(buffer, clientAddress);
-                            System.out.println("Pong is sent.");
+                            System.out.println("Sent Pong.");
                             break;
                         default:
+                            System.out.println("Received message from client.");
+                            buffer.clear();
+                            buffer.put(message.toByteArray());
+                            buffer.flip();
+                            datagramChannel.send(buffer, clientAddress);
+                            System.out.println("Sent reponse message to client.");
                             break;
                     }
                 } catch (InvalidProtocolBufferException ie) {

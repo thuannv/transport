@@ -19,6 +19,8 @@ public class UDPClient {
     private UDPSocketWriter mWriter;
 
     private IoProcessor mProcessor;
+    
+    private DatagramChannel mChannel;
 
     public UDPClient(UDPConfigs configs) {
         mConfigs = configs;
@@ -29,21 +31,20 @@ public class UDPClient {
     }
 
     public void start() throws IOException {
-        final DatagramChannel datagramChannel = connect();
-        createReader(datagramChannel);
-        createWriter(datagramChannel);
+        createChannel();
+        createReader();
+        createWriter();
     }
 
-    private DatagramChannel connect() throws IOException {
-        DatagramChannel datagramChannel = DatagramChannel.open();
-        DatagramSocket socket = datagramChannel.socket();
+    private void createChannel() throws IOException {
+        mChannel = DatagramChannel.open();
+        DatagramSocket socket = mChannel.socket();
         socket.setSoTimeout(mConfigs.getSocketTimeout());
-        return datagramChannel;
     }
 
-    private void createReader(DatagramChannel datagramChannel) {
+    private void createReader() {
         if (mReader == null) {
-            mReader = new UDPSocketReader(mConfigs, datagramChannel);
+            mReader = new UDPSocketReader(mConfigs, mChannel);
             mReader.setProcessor(new IoProcessor() {
                 @Override
                 public void process(byte[] data) {
@@ -56,9 +57,9 @@ public class UDPClient {
         }
     }
 
-    private void createWriter(DatagramChannel datagramChannel) {
+    private void createWriter() {
         if (mWriter == null) {
-            mWriter = new UDPSocketWriter(mConfigs, datagramChannel);
+            mWriter = new UDPSocketWriter(mConfigs, mChannel);
             mWriter.start();
         }
     }
@@ -67,6 +68,13 @@ public class UDPClient {
         if (mReader != null) {
             mReader.stopReader();
             mReader = null;
+        }
+    }
+    
+    private void closeChannel() {
+        try {
+            mChannel.close();
+        } catch (Exception e) {
         }
     }
 
@@ -80,13 +88,10 @@ public class UDPClient {
     public void stop() {
         stopReader();
         stopWriter();
+        closeChannel();
     }
 
     public void send(byte[] data) {
-        if (data == null || data.length <= 0) {
-            return;
-        }
-
         if (mWriter != null) {
             mWriter.write(data);
         }
