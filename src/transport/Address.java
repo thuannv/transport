@@ -2,6 +2,7 @@
 package transport;
 
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  *
@@ -47,6 +48,12 @@ public final class Address {
         } 
         return false;
     }
-    
-    
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 97 * hash + this.mPort;
+        hash = 97 * hash + Objects.hashCode(this.mHost);
+        return hash;
+    }
 }
