@@ -25,12 +25,14 @@ public class UDPClient {
 
     private CountDownLatch mStartSignal;
 
-    private CountDownLatch mStopSignal;
+    private volatile boolean mIsRunning;
+
+    private Thread mStopThread;
 
     public UDPClient(UDPConfigs configs) {
         mConfigs = configs;
+        mIsRunning = false;
         mStartSignal = new CountDownLatch(2);
-        mStopSignal = new CountDownLatch(2);
     }
 
     public void setProcessor(IoProcessor listener) {
@@ -38,6 +40,11 @@ public class UDPClient {
     }
 
     public void start() throws IOException {
+        if (mIsRunning) {
+            return;
+        }
+        mIsRunning = true;
+
         createChannel();
         createReader();
         createWriter();
@@ -48,21 +55,35 @@ public class UDPClient {
             System.out.println("Threads already started.");
         } catch (InterruptedException ex) {
             ex.printStackTrace();
+            mIsRunning = false;
         }
     }
 
     public void stop() {
-        stopReader();
-        stopWriter();
+        if (mIsRunning) {
+            if (mStopThread == null || !mStopThread.isAlive() || mStopThread.isInterrupted()) {
+                mStopThread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            stopReader();
+                            stopWriter();
+                            System.out.println("Waiting for Reader and Writer to stop...");
+                        } catch (InterruptedException ex) {
+                            ex.printStackTrace();
+                        }
+                        closeChannel();
 
-        System.out.println("Wait for threads stop...");
-        try {
-            mStopSignal.await();
-            System.out.println("Threads already stopped.");
-        } catch (InterruptedException ex) {
-            ex.printStackTrace();
+                        mReader = null;
+                        mWriter = null;
+                        mStopThread = null;
+                        mIsRunning = false;
+                        System.out.println("Reader and Writer are stopped.");
+                    }
+                });
+                mStopThread.start();
+            }
         }
-        closeChannel();
     }
 
     private void createChannel() throws IOException {
@@ -73,7 +94,7 @@ public class UDPClient {
 
     private void createReader() {
         if (mReader == null) {
-            mReader = new UDPSocketReader(mConfigs, mChannel, mStartSignal, mStopSignal);
+            mReader = new UDPSocketReader(mConfigs, mChannel, mStartSignal);
             mReader.setProcessor(new IoProcessor() {
                 @Override
                 public void process(byte[] data) {
@@ -88,29 +109,29 @@ public class UDPClient {
 
     private void createWriter() {
         if (mWriter == null) {
-            mWriter = new UDPSocketWriter(mConfigs, mChannel, mStartSignal, mStopSignal);
+            mWriter = new UDPSocketWriter(mConfigs, mChannel, mStartSignal);
             mWriter.start();
         }
     }
 
-    private void stopReader() {
+    private void stopReader() throws InterruptedException {
         if (mReader != null) {
             mReader.stopReader();
-            mReader = null;
+            mReader.join();
+        }
+    }
+
+    private void stopWriter() throws InterruptedException {
+        if (mWriter != null) {
+            mWriter.stopWriter();
+            mWriter.join();
         }
     }
 
     private void closeChannel() {
         try {
             mChannel.close();
-        } catch (Exception e) {
-        }
-    }
-
-    private void stopWriter() {
-        if (mWriter != null) {
-            mWriter.stopWriter();
-            mWriter = null;
+        } catch (IOException ex) {
         }
     }
 

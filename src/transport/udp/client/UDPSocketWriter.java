@@ -25,19 +25,16 @@ public final class UDPSocketWriter extends Thread {
     private final SocketAddress mTargetAddress;
 
     private volatile boolean mIsRunning = false;
-    
+
     private CountDownLatch mStartSignal;
-    
-    private CountDownLatch mStopSignal;
-    
-    public UDPSocketWriter(UDPConfigs configs, DatagramChannel channel, CountDownLatch startSignal, CountDownLatch stopSignal) {
+
+    public UDPSocketWriter(UDPConfigs configs, DatagramChannel channel, CountDownLatch startSignal) {
         super("DatagramSocketWriter");
         mConfigs = configs;
         mTargetAddress = new InetSocketAddress(configs.getHost(), configs.getPort());
         mDatagramChannel = channel;
         mQueue = new LinkedBlockingDeque<>();
         mStartSignal = startSignal;
-        mStopSignal = stopSignal;
     }
 
     public void stopWriter() {
@@ -79,7 +76,6 @@ public final class UDPSocketWriter extends Thread {
         }
         mIsRunning = false;
         System.out.println("Writer is stopped.");
-        mStopSignal.countDown();
     }
 
 }

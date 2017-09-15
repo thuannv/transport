@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.CountDownLatch;
 import transport.Address;
 import transport.Configs;
 import transport.ErrorResolver;
@@ -15,20 +14,31 @@ import transport.IoProcessor;
 import transport.MessageHelper;
 import transport.MessageListener;
 import transport.ZLive;
+import transport.utils.TextUtils;
+import transport.utils.ThreadUtils;
 
 /**
  *
  * @author thuannv
+ * @since 11/09/2017
  */
 public final class UDPManager {
 
     private static final int UDP_HANDSHAKE = 300;
+
     private static final int UDP_PING = 301;
+
     private static final int UDP_PONG = 302;
+
     private static final int UDP_CLIEN_CLOSED = 303;
 
     private static final int SUB_UDP_HANDSHAKE_SUCCESS = 300;
+
     private static final int SUB_UDP_HANDSHAKE_FAILURE = 301;
+
+    private final long HANDSHAKE_TIMEOUT_MILLIS = 5000; // 5 seconds
+
+    private static final boolean LOCAL = false;
 
     private static volatile UDPManager sInstance = null;
 
@@ -40,15 +50,19 @@ public final class UDPManager {
 
     private UDPConnector mConnector;
 
-    private PingScheduler mPingScheduler;
-
-    private Handshaker mHandshaker;
-
     private MessageListener mListener;
 
     private int mServerIndex = 0;
 
     private volatile boolean mIsReady = false;
+
+    private volatile Timer mPingScheduler;
+
+    private Timer mHandShakeScheduler;
+
+    private long mLastPong = 0;
+
+    private int mRetryCount = 0;
 
     public static UDPManager getsInstance() {
         UDPManager localInstance = sInstance;
@@ -71,12 +85,10 @@ public final class UDPManager {
 
         mConfigs = configs;
         mServerIndex = 0;
-        mHandshaker = new Handshaker();
-        mPingScheduler = new PingScheduler();
     }
 
     public void startClient() {
-        if (mIsInitializing) {
+        if (mIsInitializing || mIsReady) {
             return;
         }
         connect();
@@ -84,26 +96,21 @@ public final class UDPManager {
 
     public void stopClient() {
         if (mIsReady || mIsInitializing) {
-            mIsReady = false;
             mIsInitializing = false;
+            mIsReady = false;
             mServerIndex = 0;
-            mHandshaker.stopChecking();
-            mPingScheduler.stop();
-            
+            stopCheckingHandshake();
+            stopPingScheduler();
             resetConnector();
             resetClient();
-            
-            mPingScheduler = null;
-            mHandshaker = null;
         }
     }
 
     private synchronized void connect() {
         mIsInitializing = true;
         final Address server = mConfigs.getServer(mServerIndex);
-        System.out.format("Connect to: %s\n", server.toString());
-
         final UDPConfigs udpConfigs = new UDPConfigs(server.getHost(), server.getPort(), 64 * 1024, 15000);
+        System.out.format("Connect to: %s\n", server.toString());
         mConnector = new UDPConnector(udpConfigs);
         mConnector.start();
     }
@@ -124,16 +131,132 @@ public final class UDPManager {
 
         resetConnector();
 
-        final int serverCount = mConfigs.getServerCount();
-        if (++mServerIndex == serverCount) {
+        if (++mServerIndex == mConfigs.getServerCount()) {
             System.out.println("No more servers to try.");
             mServerIndex = 0;
-            mPingScheduler.stop();
+            stopPingScheduler();
             resetClient();
         } else {
             connect();
         }
+    }
 
+    public void startHandshake() {
+        if (mClient != null) {
+            mClient.send(MessageHelper.createProtoMessage(UDP_HANDSHAKE));
+            startCheckingHandshake();
+        }
+    }
+
+    private synchronized void startCheckingHandshake() {
+        if (mHandShakeScheduler == null) {
+            mHandShakeScheduler = new Timer();
+            mHandShakeScheduler.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    stopCheckingHandshake();
+                    onHandshakeTimeout();
+                }
+            }, HANDSHAKE_TIMEOUT_MILLIS);
+        }
+    }
+
+    private synchronized void stopCheckingHandshake() {
+        if (mHandShakeScheduler != null) {
+            mHandShakeScheduler.cancel();
+            mHandShakeScheduler = null;
+        }
+    }
+
+    private boolean processHanshake(ZLive.ZAPIMessage message) {
+        if (message.getCmd() == UDP_HANDSHAKE) {
+            stopCheckingHandshake();
+            int subCommand = message.getSubCmd();
+            if (subCommand == SUB_UDP_HANDSHAKE_SUCCESS) {
+                onHandshakeSuccess();
+            } else if (subCommand == SUB_UDP_HANDSHAKE_FAILURE) {
+                int errorCode = -1;
+                try {
+                    errorCode = ByteBuffer.wrap(message.getData().toByteArray()).getInt();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                onHandshakeFailed(errorCode, ErrorResolver.resolve(errorCode));
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private void onHandshakeTimeout() {
+        System.out.println("Hanshake timeout.");
+        tryConnectToNextServer();
+    }
+
+    private void onHandshakeFailed(int code, String reason) {
+        System.out.format("Hanshake failed code=%d, reason=%s\n", code, reason);
+        if (ErrorResolver.isServerError(code)) {
+            tryConnectToNextServer();
+        }
+    }
+
+    private void onHandshakeSuccess() {
+        System.out.println("Hanshake success");
+        mIsReady = true;
+        startPingScheduler();
+    }
+
+    private void ping() {
+        final long time = System.currentTimeMillis() - mLastPong;
+        final int pingTime = mConfigs.getPingTime();
+        final int maxRetry = mConfigs.getRetryCount();
+        if (time > pingTime) {
+            ++mRetryCount;
+        }
+        if (mRetryCount <= maxRetry) {
+            System.out.format("Ping retry count: %d\n", mRetryCount);
+            sendPing();
+            scheduleNextPing();
+        } else {
+            mRetryCount = 0;
+            mLastPong = 0;
+            tryConnectToNextServer();
+        }
+    }
+
+    public boolean processPong(ZLive.ZAPIMessage message) {
+        if (message != null && message.getCmd() == UDP_PONG) {
+            mRetryCount = 0;
+            mLastPong = System.currentTimeMillis();
+            return true;
+        }
+        return false;
+    }
+
+    public void startPingScheduler() {
+        if (mPingScheduler == null) {
+            mPingScheduler = new Timer();
+            scheduleNextPing();
+        }
+    }
+
+    private void scheduleNextPing() {
+        if (mPingScheduler != null) {
+            mPingScheduler.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    ping();
+                }
+            }, mConfigs.getPingTime());
+        }
+    }
+
+    public void stopPingScheduler() {
+        if (mPingScheduler != null) {
+            mPingScheduler.cancel();
+            mPingScheduler = null;
+        }
     }
 
     public void setListener(MessageListener listener) {
@@ -162,8 +285,8 @@ public final class UDPManager {
     }
 
     private synchronized void resetClient() {
+        System.out.println("Stopping client...");
         if (mClient != null) {
-            System.out.println("Stopping client...");
             mClient.setProcessor(null);
             mClient.stop();
             mClient = null;
@@ -172,27 +295,29 @@ public final class UDPManager {
 
     private synchronized void createClient(UDPConfigs configs) throws IOException {
         mClient = new UDPClient(configs);
-        mClient.setProcessor(new InternalIoProcessor());
+        mClient.setProcessor(new InternalProcessor());
         mClient.start();
     }
 
     /**
      *
      */
-    private final class InternalIoProcessor implements IoProcessor {
+    private final class InternalProcessor implements IoProcessor {
 
         @Override
         public void process(byte[] data) {
             ZLive.ZAPIMessage message = null;
             try {
                 message = ZLive.ZAPIMessage.parseFrom(data);
-                if (mHandshaker.handleHanshake(message)) {
-                    return;
+                if (mIsReady) {
+                    boolean isPongMessage = processPong(message);
+                    if (!isPongMessage) {
+                        notifyListener(message);
+                    }
+                } else {
+                    processHanshake(message);
                 }
-                if (mPingScheduler.handlePong(message)) {
-                    return;
-                }
-                notifyListener(message);
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -217,16 +342,14 @@ public final class UDPManager {
 
         private void onStarted() {
             System.out.println("Starting handshake...");
-
             mIsInitializing = false;
-
-            mHandshaker.handshake();
+            startHandshake();
         }
 
         @Override
         public void run() {
-            resetClient();
             try {
+                resetClient();
                 createClient(mUDPConfigs);
                 onStarted();
             } catch (IOException ex) {
@@ -235,270 +358,60 @@ public final class UDPManager {
         }
     }
 
-    /**
-     *
-     */
-    private final class Handshaker {
-
-        private final long HANDSHAKE_TIMEOUT_MILLIS = 5000; // 5 seconds
-
-        private volatile Timer mTimer;
-
-        private volatile boolean mHandshakeSuccess = false;
-
-        public void handshake() {
-
-            mIsReady = false;
-
-            if (mClient != null) {
-                mHandshakeSuccess = false;
-
-                //send handshake data to server
-                mClient.send(MessageHelper.createProtoMessage(UDP_HANDSHAKE));
-
-                // start checking for timeout
-                startChecking();
-            }
-        }
-
-        public synchronized void startChecking() {
-            if (mTimer == null) {
-                mTimer = new Timer();
-                mTimer.schedule(new TimerTask() {
-
-                    @Override
-                    public void run() {
-                        stopChecking();
-                        onHandshakeTimeout();
-                    }
-                }, HANDSHAKE_TIMEOUT_MILLIS);
-            }
-        }
-
-        public synchronized void stopChecking() {
-            if (mTimer != null) {
-                mTimer.cancel();
-                mTimer = null;
-            }
-        }
-
-        public boolean handleHanshake(ZLive.ZAPIMessage message) {
-            if (mHandshakeSuccess) {
-                return false;
-            }
-
-            if (message.getCmd() == UDP_HANDSHAKE) {
-                stopChecking();
-                int subCommand = message.getSubCmd();
-                if (subCommand == SUB_UDP_HANDSHAKE_SUCCESS) {
-                    onHandshakeSuccess();
-                } else if (subCommand == SUB_UDP_HANDSHAKE_FAILURE) {
-                    int errorCode = -1;
-                    try {
-                        errorCode = ByteBuffer.wrap(message.getData().toByteArray()).getInt();
-                    } catch (Exception e) {
-                    }
-                    onHandshakeFailed(errorCode, ErrorResolver.resolve(errorCode));
-                }
-                return true;
-            }
-
-            return false;
-        }
-
-        private void onHandshakeTimeout() {
-            System.out.println("Hanshake timeout.");
-            mHandshakeSuccess = false;
-            tryConnectToNextServer();
-        }
-
-        private void onHandshakeFailed(int code, String reason) {
-            mHandshakeSuccess = false;
-            System.out.format("Hanshake failed code=%d, reason=%s\n", code, reason);
-            if (ErrorResolver.isServerError(code)) {
-                tryConnectToNextServer();
-            }
-        }
-
-        private void onHandshakeSuccess() {
-            mIsReady = true;
-
-            mHandshakeSuccess = true;
-
-            mPingScheduler.start();
-
-            System.out.println("Hanshake success");
-
-        }
-    }
-
-    /**
-     *
-     */
-    private final class PingScheduler {
-
-        private long mLastPong = 0;
-
-        private int mRetryCount = 0;
-
-        private volatile Timer mTimer;
-
-        private void ping() {
-            final long time = System.currentTimeMillis() - mLastPong;
-            final int pingTime = mConfigs.getPingTime();
-            final int maxRetry = mConfigs.getRetryCount();
-            if (time > pingTime) {
-                ++mRetryCount;
-            }
-            if (mRetryCount <= maxRetry) {
-                System.out.format("Ping retry count: %d\n", mRetryCount);
-                sendPing();
-                scheduleNext();
-            } else {
-                mRetryCount = 0;
-                mLastPong = 0;
-                tryConnectToNextServer();
-            }
-        }
-
-        public void onPong() {
-            mLastPong = System.currentTimeMillis();
-            mRetryCount = 0;
-        }
-
-        public boolean handlePong(ZLive.ZAPIMessage message) {
-            if (message != null && message.getCmd() == UDP_PONG) {
-                onPong();
-                return true;
-            }
-            return false;
-        }
-
-        public void start() {
-            if (mTimer == null) {
-                mTimer = new Timer();
-                scheduleNext();
-            }
-        }
-
-        private void scheduleNext() {
-            if (mTimer != null) {
-                mTimer.schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        ping();
-                    }
-                }, mConfigs.getPingTime());
-            }
-        }
-
-        public void stop() {
-            if (mTimer != null) {
-                mTimer.cancel();
-                mTimer = null;
-            }
-        }
-    }
-
-    private static final boolean LOCAL = true;
-
-    public static void main(String[] args) throws InterruptedException {
+    static Configs getConfigs() {
         int pingTime;
         final List<Address> servers = new ArrayList<>();
         if (LOCAL) {
-            pingTime = 5000;
+            pingTime = 10000;
             servers.add(new Address("127.0.0.1", 3333));
             servers.add(new Address("localhost", 4444));
         } else {
             pingTime = 15000;
             servers.add(new Address("49.213.118.166", 11114));
         }
-        final Configs configs = new Configs(servers, pingTime, 10);
-       
+        return new Configs(servers, pingTime, 10);
+    }
+    
+    static void testUdpManager(Configs configs) {
         UDPManager.getsInstance().init(configs);
         UDPManager.getsInstance().startClient();
         UDPManager.getsInstance().setListener(new MessageListener() {
+            int i = 1;
+
             @Override
             public void onMessage(ZLive.ZAPIMessage message) {
-                System.out.println(message.getData().toString(Charset.defaultCharset()));
-            }
-        });
-        
-        final CountDownLatch restartLatch = new CountDownLatch(1);
-        
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < 10; i++) {
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException ex) {
-                    }
-                    UDPManager.getsInstance().send(MessageHelper.createProtoMessage(10000));
+                String data = message.getData().toString(Charset.defaultCharset());
+                if (!TextUtils.isEmpty(data)) {
+                    System.out.format("%d. %s\n", i++, data);
                 }
-                UDPManager.getsInstance().stopClient();
-                restartLatch.countDown();
-            }
-        }).start();
-        
-        
-        
-        restartLatch.await();
-        
-        UDPManager.getsInstance().init(configs);
-        UDPManager.getsInstance().startClient();
-        UDPManager.getsInstance().setListener(new MessageListener() {
-            @Override
-            public void onMessage(ZLive.ZAPIMessage message) {
-                System.out.println(message.getData().toString(Charset.defaultCharset()));
             }
         });
 
+        ThreadUtils.sleep(5000);
         
-        final CountDownLatch restartLatch1 = new CountDownLatch(1);
-        
-        
-        new Thread(new Runnable() {
+        Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 for (int i = 0; i < 10; i++) {
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException ex) {
-                    }
+                    ThreadUtils.sleep(200);
                     UDPManager.getsInstance().send(MessageHelper.createProtoMessage(10000));
                 }
+                ThreadUtils.sleep(2000);
                 UDPManager.getsInstance().stopClient();
-                restartLatch1.countDown();
-            }
-        }).start();
-        
-        
-        
-        restartLatch1.await();
-        
-       
-        UDPManager.getsInstance().init(configs);
-        UDPManager.getsInstance().startClient();
-        UDPManager.getsInstance().setListener(new MessageListener() {
-            @Override
-            public void onMessage(ZLive.ZAPIMessage message) {
-                System.out.println(message.getData().toString(Charset.defaultCharset()));
+
             }
         });
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < 10; i++) {
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException ex) {
-                    }
-                    UDPManager.getsInstance().send(MessageHelper.createProtoMessage(10000));
-                }
-                UDPManager.getsInstance().stopClient();
-            }
-        }).start();
+        t.start();
+        try {
+            t.join();
+        } catch (InterruptedException ex) {
+        }
+    }
+    
+    public static void main(String[] args) {
+        Configs configs = getConfigs();
+        testUdpManager(configs);
+        testUdpManager(configs);
+        testUdpManager(configs);
     }
 }

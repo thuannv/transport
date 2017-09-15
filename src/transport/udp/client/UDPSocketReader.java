@@ -20,19 +20,16 @@ public final class UDPSocketReader extends Thread {
     private final UDPConfigs mConfigs;
 
     private IoProcessor mProcessor;
-    
+
     private boolean mIsRunning = false;
 
     private CountDownLatch mStartSignal;
-    
-    private CountDownLatch mStopSignal;
-    
-    public UDPSocketReader(UDPConfigs configs, DatagramChannel datagramChannel, CountDownLatch startSignal, CountDownLatch stopSignal) {
+
+    public UDPSocketReader(UDPConfigs configs, DatagramChannel datagramChannel, CountDownLatch startSignal) {
         super("DatagramSocketReader");
         mConfigs = configs;
         mDatagramChannel = datagramChannel;
         mStartSignal = startSignal;
-        mStopSignal = stopSignal;
     }
 
     public void stopReader() {
@@ -46,7 +43,7 @@ public final class UDPSocketReader extends Thread {
     @Override
     public void run() {
         mStartSignal.countDown();
-        
+
         mIsRunning = true;
         InetAddress packetAddress = null;
         final int size = mConfigs.getBufferSize();
@@ -74,6 +71,5 @@ public final class UDPSocketReader extends Thread {
         }
         mIsRunning = false;
         System.out.println("Reader is stopped.");
-        mStopSignal.countDown();
     }
 }
