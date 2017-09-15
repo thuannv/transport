@@ -23,7 +23,7 @@ public class UDPClient {
 
     private DatagramChannel mChannel;
 
-    private CountDownLatch mStartSignal;
+    private final CountDownLatch mStartSignal;
 
     private volatile boolean mIsRunning;
 
@@ -55,7 +55,7 @@ public class UDPClient {
             System.out.println("Threads already started.");
         } catch (InterruptedException ex) {
             ex.printStackTrace();
-            mIsRunning = false;
+            stop();
         }
     }
 
@@ -78,11 +78,12 @@ public class UDPClient {
                         mWriter = null;
                         mStopThread = null;
                         mIsRunning = false;
-                        System.out.println("Reader and Writer are stopped.");
+                        System.out.println("Client is stopped.");
                     }
                 });
                 mStopThread.start();
             }
+            mIsRunning = false;
         }
     }
 

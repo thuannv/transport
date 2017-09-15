@@ -42,7 +42,7 @@ public final class UDPManager {
 
     private static volatile UDPManager sInstance = null;
 
-    private volatile boolean mIsInitializing = false;
+    private volatile boolean mIsConnecting = false;
 
     private Configs mConfigs;
 
@@ -77,6 +77,9 @@ public final class UDPManager {
         return localInstance;
     }
 
+    private UDPManager() {
+    }
+
     public void init(Configs configs) {
         if (configs == null) {
             throw new IllegalArgumentException("configs must NOT be null.");
@@ -88,17 +91,18 @@ public final class UDPManager {
     }
 
     public void startClient() {
-        if (mIsInitializing || mIsReady) {
+        if (mIsConnecting || mIsReady) {
             return;
         }
         connect();
     }
 
-    public void stopClient() {
-        if (mIsReady || mIsInitializing) {
-            mIsInitializing = false;
+    public synchronized void stopClient() {
+        if (mIsReady || mIsConnecting) {
+            mIsConnecting = false;
             mIsReady = false;
             mServerIndex = 0;
+            setListener(null);
             stopCheckingHandshake();
             stopPingScheduler();
             resetConnector();
@@ -107,15 +111,15 @@ public final class UDPManager {
     }
 
     private synchronized void connect() {
-        mIsInitializing = true;
+        mIsConnecting = true;
         final Address server = mConfigs.getServer(mServerIndex);
         final UDPConfigs udpConfigs = new UDPConfigs(server.getHost(), server.getPort(), 64 * 1024, 15000);
-        System.out.format("Connect to: %s\n", server.toString());
         mConnector = new UDPConnector(udpConfigs);
         mConnector.start();
+        System.out.format("Connect to: %s\n", server.toString());
     }
 
-    private void resetConnector() {
+    private synchronized void resetConnector() {
         if (mConnector != null) {
             if (mConnector.isAlive() && !mConnector.isInterrupted()) {
                 mConnector.interrupt();
@@ -124,7 +128,7 @@ public final class UDPManager {
         }
     }
 
-    private void tryConnectToNextServer() {
+    private synchronized void tryConnectToNextServer() {
         System.out.println("Try connecting to next server...");
 
         mIsReady = false;
@@ -141,7 +145,7 @@ public final class UDPManager {
         }
     }
 
-    public void startHandshake() {
+    private synchronized void startHandshake() {
         if (mClient != null) {
             mClient.send(MessageHelper.createProtoMessage(UDP_HANDSHAKE));
             startCheckingHandshake();
@@ -207,7 +211,7 @@ public final class UDPManager {
         startPingScheduler();
     }
 
-    private void ping() {
+    private synchronized void ping() {
         final long time = System.currentTimeMillis() - mLastPong;
         final int pingTime = mConfigs.getPingTime();
         final int maxRetry = mConfigs.getRetryCount();
@@ -252,7 +256,7 @@ public final class UDPManager {
         }
     }
 
-    public void stopPingScheduler() {
+    private void stopPingScheduler() {
         if (mPingScheduler != null) {
             mPingScheduler.cancel();
             mPingScheduler = null;
@@ -299,6 +303,14 @@ public final class UDPManager {
         mClient.start();
     }
 
+    public boolean isReady() {
+        return mIsReady;
+    }
+
+    public boolean isConnecting() {
+        return mIsConnecting;
+    }
+
     /**
      *
      */
@@ -336,13 +348,13 @@ public final class UDPManager {
         }
 
         private void onError(Throwable t) {
-            mIsInitializing = false;
+            mIsConnecting = false;
             System.out.format("onError()/Error=%s\n", t.toString());
         }
 
         private void onStarted() {
             System.out.println("Starting handshake...");
-            mIsInitializing = false;
+            mIsConnecting = false;
             startHandshake();
         }
 
@@ -358,6 +370,20 @@ public final class UDPManager {
         }
     }
 
+    static MessageListener dummyListener() {
+        return new MessageListener() {
+            int i = 1;
+
+            @Override
+            public void onMessage(ZLive.ZAPIMessage message) {
+                String data = message.getData().toString(Charset.defaultCharset());
+                if (!TextUtils.isEmpty(data)) {
+                    System.out.format("%d. %s\n", i++, data);
+                }
+            }
+        };
+    }
+
     static Configs getConfigs() {
         int pingTime;
         final List<Address> servers = new ArrayList<>();
@@ -371,47 +397,54 @@ public final class UDPManager {
         }
         return new Configs(servers, pingTime, 10);
     }
-    
-    static void testUdpManager(Configs configs) {
-        UDPManager.getsInstance().init(configs);
-        UDPManager.getsInstance().startClient();
-        UDPManager.getsInstance().setListener(new MessageListener() {
-            int i = 1;
 
-            @Override
-            public void onMessage(ZLive.ZAPIMessage message) {
-                String data = message.getData().toString(Charset.defaultCharset());
-                if (!TextUtils.isEmpty(data)) {
-                    System.out.format("%d. %s\n", i++, data);
+    static void startListening(Configs configs) {
+        System.out.println("Start listening....");
+        final UDPManager manager = UDPManager.getsInstance();
+        if (manager.isReady() || manager.isConnecting()) {
+            manager.setListener(dummyListener());
+            System.out.println("Manager is STARTED -> added listener.");
+        } else {
+            System.out.println("Manager is NOT started -> init and add listener.");
+            manager.init(configs);
+            manager.setListener(dummyListener());
+            manager.startClient();
+
+            ThreadUtils.sleep(5000);
+
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int i = 0; i < 10000; i++) {
+                        ThreadUtils.sleep(200);
+                        UDPManager.getsInstance().send(MessageHelper.createProtoMessage(10000));
+                    }
+                    //ThreadUtils.sleep(2000);
+                    //UDPManager.getsInstance().stopClient();
                 }
-            }
-        });
+            });
 
-        ThreadUtils.sleep(5000);
-        
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < 10; i++) {
-                    ThreadUtils.sleep(200);
-                    UDPManager.getsInstance().send(MessageHelper.createProtoMessage(10000));
-                }
-                ThreadUtils.sleep(2000);
-                UDPManager.getsInstance().stopClient();
+            t.start();
 
-            }
-        });
-        t.start();
-        try {
-            t.join();
-        } catch (InterruptedException ex) {
+//            try {
+//                t.join();
+//            } catch (InterruptedException ex) {
+//            }
         }
     }
-    
+
+    static void stopListening() {
+        System.out.println("Stop listening...");
+        UDPManager.getsInstance().setListener(null);
+    }
+
     public static void main(String[] args) {
         Configs configs = getConfigs();
-        testUdpManager(configs);
-        testUdpManager(configs);
-        testUdpManager(configs);
+        startListening(configs);
+        startListening(configs);
+        stopListening();
+        startListening(configs);
+        stopListening();
+        startListening(configs);
     }
 }
