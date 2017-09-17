@@ -16,11 +16,14 @@ public final class UDPConfigs {
     
     private final int mSocketTimeout;
 
-    public UDPConfigs(String host, int port, int bufferSize, int socketTimeout) {
+    private final boolean mIsReuseAddress;
+
+    public UDPConfigs(String host, int port, int bufferSize, int socketTimeout, boolean isReuseAddress) {
         mHost = host;
         mPort = port;
         mBufferSize = bufferSize;
         mSocketTimeout = socketTimeout;
+        mIsReuseAddress = isReuseAddress;
     }
 
     public int getPort() {
@@ -38,7 +41,11 @@ public final class UDPConfigs {
     public int getSocketTimeout() {
         return mSocketTimeout;
     }
-    
+
+    public boolean isReuseAddress() {
+        return mIsReuseAddress;
+    }
+
     /**
      *
      */
@@ -51,6 +58,8 @@ public final class UDPConfigs {
         private int mBufferSize;
         
         private int mSocketTimeout;
+
+        private boolean mIsReuseAddress;
 
         private UDPConfigs mConfigs;
 
@@ -89,10 +98,18 @@ public final class UDPConfigs {
         public int getSocketTimeout() {
             return mSocketTimeout;
         }
-        
+
+        public boolean isReuseAddress() {
+            return mIsReuseAddress;
+        }
+
+        public void setReuseAddress(boolean isReuseAddress) {
+            mIsReuseAddress = isReuseAddress;
+        }
+
         public UDPConfigs build() {
             if (mConfigs == null) {
-                mConfigs = new UDPConfigs(mHost, mPort, mBufferSize, mSocketTimeout);
+                mConfigs = new UDPConfigs(mHost, mPort, mBufferSize, mSocketTimeout, mIsReuseAddress);
             }
             return mConfigs;
         }

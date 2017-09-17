@@ -7,13 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import transport.Address;
-import transport.Configs;
-import transport.ErrorResolver;
-import transport.IoProcessor;
-import transport.MessageHelper;
-import transport.MessageListener;
-import transport.ZLive;
+
+import transport.*;
 import transport.utils.TextUtils;
 import transport.utils.ThreadUtils;
 
@@ -38,7 +33,6 @@ public final class UDPManager {
 
     private final long HANDSHAKE_TIMEOUT_MILLIS = 5000; // 5 seconds
 
-    private static final boolean LOCAL = false;
 
     private static volatile UDPManager sInstance = null;
 
@@ -113,7 +107,7 @@ public final class UDPManager {
     private synchronized void connect() {
         mIsConnecting = true;
         final Address server = mConfigs.getServer(mServerIndex);
-        final UDPConfigs udpConfigs = new UDPConfigs(server.getHost(), server.getPort(), 64 * 1024, 15000);
+        final UDPConfigs udpConfigs = new UDPConfigs(server.getHost(), server.getPort(), 64 * 1024, 15000, true);
         mConnector = new UDPConnector(udpConfigs);
         mConnector.start();
         System.out.format("Connect to: %s\n", server.toString());
@@ -387,7 +381,7 @@ public final class UDPManager {
     static Configs getConfigs() {
         int pingTime;
         final List<Address> servers = new ArrayList<>();
-        if (LOCAL) {
+        if (BuildConfig.DEBUG) {
             pingTime = 10000;
             servers.add(new Address("127.0.0.1", 3333));
             servers.add(new Address("localhost", 4444));
