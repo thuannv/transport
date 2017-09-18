@@ -3,6 +3,7 @@ package transport.udp.client.v2;
 import transport.udp.client.UDPConfigs;
 
 import java.net.*;
+import java.util.Locale;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -15,7 +16,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class UDPSocketWriter extends Thread {
 
-    private static final AtomicInteger INSTANCES_COUNT = new AtomicInteger();
+    private static final String NAME = "UDPSocketWriter";
+
+    private static final AtomicInteger COUNTER = new AtomicInteger();
 
     private final UDPConfigs mConfigs;
 
@@ -30,7 +33,7 @@ public final class UDPSocketWriter extends Thread {
     private volatile boolean mIsRunning = false;
 
     public UDPSocketWriter(UDPConfigs configs, DatagramSocket socket, CountDownLatch startLatch) throws UnknownHostException {
-        super(getInstanceName(INSTANCES_COUNT.incrementAndGet()));
+        super(String.format(Locale.US, "%s-%d", NAME, COUNTER.incrementAndGet()));
         mConfigs = configs;
         mTargetAddress = new InetSocketAddress(InetAddress.getByName(configs.getHost()), configs.getPort());
         mSocket = socket;
@@ -74,7 +77,7 @@ public final class UDPSocketWriter extends Thread {
 
     private void loop() {
         mIsRunning = true;
-        byte[] data = null;
+        byte[] data;
         final DatagramPacket packet = new DatagramPacket(new byte[0], 0, mTargetAddress);
         while (!isInterrupted() && mIsRunning) {
             try {
@@ -92,14 +95,4 @@ public final class UDPSocketWriter extends Thread {
         System.out.println(Thread.currentThread().getName() + " is finished.");
     }
 
-
-    @Override
-    protected void finalize() throws Throwable {
-        INSTANCES_COUNT.decrementAndGet();
-        super.finalize();
-    }
-
-    private static String getInstanceName(int id) {
-        return String.format("UDPSocketWriter_%d", id);
-    }
 }

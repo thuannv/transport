@@ -8,6 +8,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -17,7 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class UDPSocketReader extends Thread {
 
-    private static final AtomicInteger INSTANCES_COUNT = new AtomicInteger();
+    private static final String NAME = "UDPSocketReader";
+
+    private static final AtomicInteger COUNTER = new AtomicInteger();
 
     private final UDPConfigs mConfigs;
 
@@ -30,7 +33,7 @@ public final class UDPSocketReader extends Thread {
     private volatile boolean mIsRunning = false;
 
     UDPSocketReader(UDPConfigs configs, DatagramSocket socket, CountDownLatch startLatch, IoProcessor processor) {
-        super(getInstanceName(INSTANCES_COUNT.incrementAndGet()));
+        super(String.format(Locale.US, "%s-%d", NAME, COUNTER.incrementAndGet()));
         if (configs == null) {
             throw new IllegalArgumentException("configs must NOT be null.");
         }
@@ -109,13 +112,4 @@ public final class UDPSocketReader extends Thread {
         System.out.println(Thread.currentThread().getName() + " is finished.");
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        INSTANCES_COUNT.decrementAndGet();
-        super.finalize();
-    }
-
-    private static String getInstanceName(int id) {
-        return String.format("UDPSocketReader_%d", id);
-    }
 }
