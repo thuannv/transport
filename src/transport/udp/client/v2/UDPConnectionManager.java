@@ -30,6 +30,10 @@ public final class UDPConnectionManager {
 
     private static final int SUB_UDP_HANDSHAKE_FAILURE = 301;
 
+    private static final long HANDSHAKE_TIMEOUT = 60 * 1000; // 1 Minute
+
+    private static volatile UDPConnectionManager sInstance = null;
+
     private UDPConfigs mConfigs;
 
     private UDPConnection mConnection;
@@ -72,6 +76,8 @@ public final class UDPConnectionManager {
         }
     };
 
+    private UDPConnectionManager() {}
+
     private void startHandshake() {
         mConnection.send(MessageHelper.createProtoMessage(UDP_HANDSHAKE));
         startCheckingHandshake();
@@ -85,7 +91,7 @@ public final class UDPConnectionManager {
                 public void run() {
                     System.out.println("Handshake timeout.");
                 }
-            }, 5000);
+            }, HANDSHAKE_TIMEOUT);
         }
     }
 
@@ -161,6 +167,19 @@ public final class UDPConnectionManager {
         return false;
     }
 
+    public static UDPConnectionManager getInstance() {
+        UDPConnectionManager local = sInstance;
+        if (local == null) {
+            synchronized (UDPConnectionManager.class) {
+                local = sInstance;
+                if (local == null) {
+                    local = sInstance = new UDPConnectionManager();
+                }
+            }
+        }
+        return local;
+    }
+
     public void init(UDPConfigs configs) {
         mConfigs = configs;
     }
@@ -228,7 +247,6 @@ public final class UDPConnectionManager {
             public void onReceived(byte[] data) {
                 ZLive.ZAPIMessage message = null;
                 try {
-                    System.out.println("onReceived()");
                     message = ZLive.ZAPIMessage.parseFrom(data);
                     String sdata = message.getData().toString(Charset.defaultCharset());
                     if (!TextUtils.isEmpty(sdata)) {
@@ -244,7 +262,7 @@ public final class UDPConnectionManager {
     public static void main(String[] args) throws InterruptedException {
         UDPConfigs configs = new UDPConfigs("49.213.118.166", 11114, 4096, 5000, true);
         DataListener dataListener = dummyListener();
-        UDPConnectionManager manager = new UDPConnectionManager();
+        UDPConnectionManager manager = UDPConnectionManager.getInstance();
         manager.init(configs);
         manager.addListener(dataListener);
         manager.connect();
