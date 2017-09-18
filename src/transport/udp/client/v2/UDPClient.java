@@ -1,16 +1,11 @@
 package transport.udp.client.v2;
 
-import transport.Address;
-import transport.BuildConfig;
-import transport.Configs;
 import transport.IoProcessor;
 import transport.udp.client.UDPConfigs;
 
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -74,14 +69,14 @@ public final class UDPClient {
 
     private void stopWriter() {
         if (mWriter != null) {
-            mWriter.stopWriter(true, 1000);
+            mWriter.stopWriter(true);
             mWriter = null;
         }
     }
 
     private void stopReader() {
         if (mReader != null) {
-            mReader.stopReader(true, 1000);
+            mReader.stopReader(true);
             mReader = null;
         }
     }
@@ -106,6 +101,11 @@ public final class UDPClient {
             createSocket();
             createReader();
             createWriter();
+            try {
+                mStartSignal.await();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             mIsReady.set(true);
             System.out.println("UDPClient is ready.");
         } finally {
@@ -141,25 +141,9 @@ public final class UDPClient {
         mProcessor = processor;
     }
 
-
-    /*************************************************************
-     * For testing purpose.
-     *************************************************************/
-    static Configs getConfigs() {
-        int pingTime;
-        final List<Address> servers = new ArrayList<>();
-        if (BuildConfig.DEBUG) {
-            pingTime = 10000;
-            servers.add(new Address("127.0.0.1", 3333));
-            servers.add(new Address("localhost", 4444));
-        } else {
-            pingTime = 15000;
-            servers.add(new Address("49.213.118.166", 11114));
+    public void send(byte[] data) {
+        if (mWriter != null) {
+            mWriter.write(data);
         }
-        return new Configs(servers, pingTime, 10);
-    }
-
-    public static void main(String[] args) {
-
     }
 }

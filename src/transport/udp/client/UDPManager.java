@@ -25,14 +25,13 @@ public final class UDPManager {
 
     private static final int UDP_PONG = 302;
 
-    private static final int UDP_CLIEN_CLOSED = 303;
+    private static final int UDP_CLIENT_CLOSED = 303;
 
     private static final int SUB_UDP_HANDSHAKE_SUCCESS = 300;
 
     private static final int SUB_UDP_HANDSHAKE_FAILURE = 301;
 
     private final long HANDSHAKE_TIMEOUT_MILLIS = 5000; // 5 seconds
-
 
     private static volatile UDPManager sInstance = null;
 
@@ -166,7 +165,7 @@ public final class UDPManager {
         }
     }
 
-    private boolean processHanshake(ZLive.ZAPIMessage message) {
+    private boolean processHandshake(ZLive.ZAPIMessage message) {
         if (message.getCmd() == UDP_HANDSHAKE) {
             stopCheckingHandshake();
             int subCommand = message.getSubCmd();
@@ -188,19 +187,19 @@ public final class UDPManager {
     }
 
     private void onHandshakeTimeout() {
-        System.out.println("Hanshake timeout.");
+        System.out.println("Handshake timeout.");
         tryConnectToNextServer();
     }
 
     private void onHandshakeFailed(int code, String reason) {
-        System.out.format("Hanshake failed code=%d, reason=%s\n", code, reason);
+        System.out.format("Handshake failed code=%d, reason=%s\n", code, reason);
         if (ErrorResolver.isServerError(code)) {
             tryConnectToNextServer();
         }
     }
 
     private void onHandshakeSuccess() {
-        System.out.println("Hanshake success");
+        System.out.println("Handshake success");
         mIsReady = true;
         startPingScheduler();
     }
@@ -321,7 +320,7 @@ public final class UDPManager {
                         notifyListener(message);
                     }
                 } else {
-                    processHanshake(message);
+                    processHandshake(message);
                 }
 
             } catch (Exception e) {

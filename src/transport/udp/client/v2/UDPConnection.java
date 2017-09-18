@@ -1,5 +1,8 @@
 package transport.udp.client.v2;
 
+import transport.IoProcessor;
+import transport.udp.client.UDPConfigs;
+
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -16,16 +19,47 @@ public final class UDPConnection {
 
     private final AtomicBoolean mIsDisconnecting = new AtomicBoolean(false);
 
-    UDPConnection(UDPClient client) {
-        mClient = client;
+    private ConnectionListener mListener;
+
+    UDPConnection(UDPConfigs configs) {
+        mClient = new UDPClient(configs);
+        mClient.setProcessor(new IoProcessor() {
+            @Override
+            public void process(byte[] data) {
+                if (mListener != null) {
+                    mListener.onMessage(data);
+                }
+            }
+        });
+    }
+
+    private void onConnected() {
+        System.out.println("UDPConnection: onConnected()");
+        if (mListener != null) {
+            mListener.onConnected();
+        }
+    }
+
+    private void onDisconnected() {
+        System.out.println("UDPConnection: onDisconnected()");
+        if (mListener != null) {
+            mListener.onDisconnected();
+        }
+    }
+
+    private void onError(Throwable t) {
+        System.out.println(t.toString());
+        if (mListener != null) {
+            mListener.onError(t);
+        }
     }
 
     public boolean isConnected() {
-        return mClient != null && mClient.isReady();
+        return mClient.isReady();
     }
 
     public boolean isConnecting() {
-        return mIsConnecting.get() || (mClient != null && mClient.isStarting());
+        return mIsConnecting.get() || mClient.isStarting();
     }
 
     public void connect() {
@@ -44,6 +78,14 @@ public final class UDPConnection {
         return !isConnected();
     }
 
+    public void setConnectionListener(ConnectionListener listener) {
+        mListener = listener;
+    }
+
+    public void send(byte[] data) {
+        mClient.send(data);
+    }
+
     /**
      * {@link Connector}
      */
@@ -52,8 +94,10 @@ public final class UDPConnection {
         public void run() {
             try {
                 mClient.start();
+                onConnected();
             } catch (SocketException | UnknownHostException e) {
                 e.printStackTrace();
+                onError(e);
             }
             mIsConnecting.set(false);
         }
@@ -68,8 +112,22 @@ public final class UDPConnection {
         public void run() {
             if (mClient != null && mClient.isReady() && !mClient.isStopping()) {
                 mClient.stop();
+                onDisconnected();
             }
             mIsDisconnecting.set(false);
         }
+    }
+
+    /**
+     * {@link ConnectionListener}
+     */
+    public interface ConnectionListener {
+        void onConnected();
+
+        void onError(Throwable t);
+
+        void onDisconnected();
+
+        void onMessage(byte[] data);
     }
 }

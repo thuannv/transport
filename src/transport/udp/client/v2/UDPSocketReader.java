@@ -27,6 +27,8 @@ public final class UDPSocketReader extends Thread {
 
     private WeakReference<IoProcessor> mProcessorRef;
 
+    private volatile boolean mIsRunning = false;
+
     UDPSocketReader(UDPConfigs configs, DatagramSocket socket, CountDownLatch startLatch, IoProcessor processor) {
         super(getInstanceName(INSTANCES_COUNT.incrementAndGet()));
         if (configs == null) {
@@ -44,6 +46,7 @@ public final class UDPSocketReader extends Thread {
         mConfigs = configs;
         mSocket = socket;
         mStartLatch = startLatch;
+        mProcessorRef = new WeakReference<>(processor);
     }
 
     @Override
@@ -53,13 +56,13 @@ public final class UDPSocketReader extends Thread {
         notifyStop();
     }
 
-    public void stopReader(boolean blocking, long timeout) {
-        this.interrupt();
+    public void stopReader(boolean blocking) {
+        mIsRunning = false;
+        interrupt();
         if (blocking) {
             try {
-                join(timeout);
+                join();
             } catch (InterruptedException e) {
-                e.printStackTrace();
             }
         }
     }
@@ -72,12 +75,13 @@ public final class UDPSocketReader extends Thread {
     }
 
     private void loop() {
+        mIsRunning = true;
         InetAddress packetAddress = null;
         final int size = mConfigs.getBufferSize();
         final byte[] buffer = new byte[size];
         final DatagramPacket packet = new DatagramPacket(buffer, size);
         final String server = mConfigs.getHost();
-        while (!isInterrupted()) {
+        while (!isInterrupted() && mIsRunning) {
             try {
                 packet.setData(buffer, 0, size);
                 mSocket.receive(packet);

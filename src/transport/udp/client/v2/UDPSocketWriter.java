@@ -27,8 +27,10 @@ public final class UDPSocketWriter extends Thread {
 
     private CountDownLatch mStartLatch;
 
+    private volatile boolean mIsRunning = false;
+
     public UDPSocketWriter(UDPConfigs configs, DatagramSocket socket, CountDownLatch startLatch) throws UnknownHostException {
-        super("DatagramSocketWriter");
+        super(getInstanceName(INSTANCES_COUNT.incrementAndGet()));
         mConfigs = configs;
         mTargetAddress = new InetSocketAddress(InetAddress.getByName(configs.getHost()), configs.getPort());
         mSocket = socket;
@@ -36,11 +38,12 @@ public final class UDPSocketWriter extends Thread {
         mStartLatch = startLatch;
     }
 
-    public void stopWriter(boolean blocking, long timeout) {
-        this.interrupt();
+    public void stopWriter(boolean blocking) {
+        mIsRunning = false;
+        interrupt();
         if (blocking) {
             try {
-                this.join(timeout);
+                join();
             } catch (InterruptedException e) {
             }
         }
@@ -51,7 +54,6 @@ public final class UDPSocketWriter extends Thread {
             try {
                 mQueue.offer(data);
             } catch (Exception e) {
-                e.printStackTrace();
             }
         }
     }
@@ -71,21 +73,17 @@ public final class UDPSocketWriter extends Thread {
     }
 
     private void loop() {
-        byte[] data;
+        mIsRunning = true;
+        byte[] data = null;
         final DatagramPacket packet = new DatagramPacket(new byte[0], 0, mTargetAddress);
-        while (!isInterrupted()) {
+        while (!isInterrupted() && mIsRunning) {
             try {
-                data = mQueue.poll(500, TimeUnit.MILLISECONDS);
-                if (data != null || data.length > 0) {
+                data = mQueue.poll(1000, TimeUnit.MILLISECONDS);
+                if (data != null && data.length > 0) {
                     packet.setData(data, 0, data.length);
-                    try {
-                        mSocket.send(packet);
-                    } catch (Exception e) {
-                        //e.printStackTrace();
-                    }
+                    mSocket.send(packet);
                 }
             } catch (Exception e) {
-                e.printStackTrace();
             }
         }
     }
@@ -102,6 +100,6 @@ public final class UDPSocketWriter extends Thread {
     }
 
     private static String getInstanceName(int id) {
-        return String.format("UDPSocketReader_%d", id);
+        return String.format("UDPSocketWriter_%d", id);
     }
 }
