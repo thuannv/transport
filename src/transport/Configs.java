@@ -7,6 +7,7 @@ import java.util.List;
 /**
  *
  * @author thuannv
+ * @since 15/09/2017
  */
 public final class Configs {
     

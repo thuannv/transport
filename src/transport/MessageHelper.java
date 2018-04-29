@@ -9,8 +9,8 @@ import com.google.protobuf.ByteString;
 import java.nio.charset.Charset;
 
 /**
- *
- * @author steven
+ * @author thuannv
+ * @since 15/09/2017
  */
 public final class MessageHelper {
     
